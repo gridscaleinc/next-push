@@ -1,0 +1,32 @@
+{
+  "name": "next-push-frontend",
+  "version": "1.0.0",
+  "description": "Vue.js frontend for next-push application",
+  "private": true,
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint",
+    "dev": "vue-cli-service serve --open"
+  },
+  "dependencies": {
+    "vue": "^3.3.0",
+    "vue-router": "^4.2.0",
+    "axios": "^1.5.0",
+    "pinia": "^2.1.0"
+  },
+  "devDependencies": {
+    "@vue/cli-service": "^5.0.8",
+    "@vue/cli-plugin-router": "^5.0.8",
+    "@vue/cli-plugin-eslint": "^5.0.8",
+    "@vue/eslint-config-standard": "^8.0.1",
+    "eslint": "^8.49.0",
+    "eslint-plugin-vue": "^9.17.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "not ie 11"
+  ]
+}
