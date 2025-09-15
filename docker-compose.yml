@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: gsdb01-postgres
+    environment:
+      POSTGRES_DB: gsdb01
+      POSTGRES_USER: gdbuser
+      POSTGRES_PASSWORD: gdbpass
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

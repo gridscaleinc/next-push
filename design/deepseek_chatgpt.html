@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <title>Gridscale CMS | Light + Logo + Users + Collapse</title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50:"#eef2ff",100:"#e0e7ff",200:"#c7d2fe",300:"#a5b4fc",
+                            400:"#818cf8",500:"#6366f1",600:"#4f46e5",700:"#4338ca",
+                            800:"#3730a3",900:"#312e81"
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+    <style>
+        body{
+            background:
+                    radial-gradient(900px 600px at -10% -10%, rgba(99,102,241,.12), transparent 60%),
+                    radial-gradient(900px 600px at 110% 0%, rgba(14,165,233,.12), transparent 60%),
+                    linear-gradient(180deg,#f9fafb 0%, #ffffff 60%, #f8fafc 100%);
+        }
+        .fade-enter-active,.fade-leave-active{transition:opacity .18s ease}
+        .fade-enter-from,.fade-leave-to{opacity:0}
+        .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 10px 25px -15px rgba(2,6,23,.15)}
+        .input{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:.6rem .75rem}
+        .input:focus{outline:none;box-shadow:0 0 0 3px rgba(99,102,241,.18)}
+        .btn-primary{background-image:linear-gradient(90deg,#6366f1,#06b6d4);color:#fff}
+        .btn-primary:hover{filter:brightness(1.05)}
+        .tag{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:9999px;padding:.2rem .5rem;font-size:.75rem}
+    </style>
+</head>
+<body class="text-gray-800 antialiased">
+<div id="app" class="min-h-screen flex">
+
+    <!-- Sidebar -->
+    <aside
+            class="hidden md:flex md:flex-col transition-all duration-200 ease-in-out overflow-hidden"
+            :class="ui.sidebarCollapsed ? 'w-0 px-0 py-0' : 'w-72 p-4'">
+
+        <!-- Brand -->
+        <div v-show="!ui.sidebarCollapsed" class="card p-4">
+            <div class="flex items-center gap-3">
+                <img :src="branding.logoUrl" :style="{height: branding.logoH + 'px'}"
+                     class="w-auto" alt="Gridscale" @error="onLogoError"/>
+                <div class="min-w-0">
+                    <div class="font-semibold tracking-wide">Gridscale CMS</div>
+                    <div class="text-xs text-gray-500">Bringing new value to the future</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nav -->
+        <nav v-show="!ui.sidebarCollapsed" class="card p-2 mt-3">
+            <button v-for="item in nav" :key="item.key"
+                    @click="route=item.key"
+                    class="w-full text-left px-3 py-2 rounded-xl flex items-center gap-3 hover:bg-brand-50"
+                    :class="route===item.key ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-100' : ''">
+                <i :class="item.icon" class="text-brand-500"></i>
+                <span class="font-medium">{{ item.label }}</span>
+                <span v-if="item.badge!=null"
+                      class="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+          {{ item.badge() }}
+        </span>
+            </button>
+        </nav>
+
+        <!-- Admin / User Registration -->
+        <div v-show="!ui.sidebarCollapsed" class="card p-4 mt-3">
+            <div class="flex items-center justify-between">
+                <h3 class="font-semibold flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-brand-600"></i> 管理者
+                </h3>
+                <span v-if="security.adminEnabled"
+                      class="text-xs px-2 py-0.5 rounded-full"
+                      :class="adminUnlocked ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'">
+          {{ adminUnlocked ? '解除済み' : 'ロック中' }}
+        </span>
+            </div>
+
+            <!-- Unlock -->
+            <div v-if="!adminUnlocked" class="mt-2">
+                <label class="block text-sm">管理者パスコード</label>
+                <input v-model="adminPassInput" type="password" class="mt-1 w-full input" placeholder="••••••••">
+                <button @click="unlockAdmin" class="mt-2 w-full px-3 py-2 rounded-lg btn-primary">
+                    ロック解除
+                </button>
+                <p class="text-xs text-gray-500 mt-2" v-if="!security.adminEnabled">
+                    ※パスコード未設定（デモモード）。だれでも登録可能です。<br>「設定 → セキュリティ」でパスコードを有効化してください。
+                </p>
+            </div>
+
+            <!-- User Create (Admin only) -->
+            <div v-else class="mt-2">
+                <h4 class="text-sm font-medium mb-2">ユーザー登録（管理者のみ）</h4>
+                <label class="block text-sm">氏名
+                    <input v-model="userForm.name" class="mt-1 w-full input" placeholder="山田 太郎">
+                </label>
+                <label class="block text-sm mt-2">メール
+                    <input v-model="userForm.email" type="email" class="mt-1 w-full input" placeholder="taro@example.com">
+                </label>
+                <div class="flex gap-2 mt-2">
+                    <label class="block text-sm flex-1">権限
+                        <select v-model="userForm.role" class="mt-1 w-full input">
+                            <option value="admin">管理者</option>
+                            <option value="editor">編集者</option>
+                            <option value="viewer">閲覧のみ</option>
+                        </select>
+                    </label>
+                    <label class="block text-sm w-24">状態
+                        <select v-model="userForm.active" class="mt-1 w-full input">
+                            <option :value="true">有効</option>
+                            <option :value="false">無効</option>
+                        </select>
+                    </label>
+                </div>
+                <label class="block text-sm mt-2">初期パスワード
+                    <div class="flex gap-2 mt-1">
+                        <input v-model="userForm.tempPass" type="text" class="flex-1 input" placeholder="英数8文字以上">
+                        <button @click="generateTempPass" class="px-2 rounded border">生成</button>
+                    </div>
+                </label>
+                <label class="block text-sm mt-2">メモ
+                    <textarea v-model="userForm.note" rows="2" class="mt-1 w-full input" placeholder="部署や備考など"></textarea>
+                </label>
+                <button @click="createUser" class="mt-3 w-full px-3 py-2 rounded-lg btn-primary">
+                    <i class="fa-solid fa-user-plus mr-1"></i> 登録
+                </button>
+
+                <div class="mt-3 text-xs text-gray-600">
+                    登録数: {{ users.length }}
+                </div>
+                <div class="mt-2">
+                    <div class="text-xs text-gray-500 mb-1">最近登録</div>
+                    <ul class="space-y-1 max-h-28 overflow-auto">
+                        <li v-for="u in recentUsers" :key="u.id" class="text-sm flex justify-between gap-2">
+                            <span class="truncate">{{ u.name }} <span class="text-gray-500">・{{ roleLabel(u.role) }}</span></span>
+                            <span class="text-xs text-gray-400 whitespace-nowrap">{{ (u.createdAt||'').replace('T',' ').slice(5,16) }}</span>
+                        </li>
+                    </ul>
+                </div>
+                <button @click="relockAdmin" class="mt-3 w-full px-3 py-2 rounded border">
+                    ロック
+                </button>
+            </div>
+        </div>
+
+        <!-- Data Export/Import -->
+        <div v-show="!ui.sidebarCollapsed" class="mt-auto card p-3 text-sm">
+            <div class="flex items-center justify-between">
+                <span class="text-gray-600">データ</span>
+                <div class="space-x-2">
+                    <button @click="exportJSON" class="px-2 py-1 rounded border">JSON</button>
+                    <button @click="exportCSV" class="px-2 py-1 rounded border">CSV</button>
+                </div>
+            </div>
+            <label class="mt-2 block">
+                <input type="file" class="hidden" @change="importFile($event)" accept="application/json">
+                <span class="inline-flex items-center gap-2 px-2 py-1 mt-1 rounded border cursor-pointer">
+          <i class="fa-solid fa-file-import"></i> インポート
+        </span>
+            </label>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <section class="flex-1 flex flex-col">
+        <!-- Topbar -->
+        <header class="px-4 pt-4 md:px-6">
+            <div class="card px-3 py-2 md:px-4 md:py-3 flex items-center gap-3">
+                <!-- Mobile drawer -->
+                <button class="md:hidden px-2 py-1 rounded border" @click="drawer=!drawer" title="メニュー">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <!-- Desktop sidebar collapse toggle -->
+                <button
+                        class="hidden md:inline-flex px-2 py-1 rounded border hover:bg-gray-50"
+                        @click="toggleSidebar"
+                        :aria-pressed="ui.sidebarCollapsed ? 'true':'false'"
+                        :title="ui.sidebarCollapsed ? 'サイドバーを表示' : 'サイドバーを隠す'">
+                    <i :class="ui.sidebarCollapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'"></i>
+                </button>
+
+                <img :src="branding.logoUrl" :style="{height: Math.min(branding.logoH, 28) + 'px'}"
+                     class="hidden sm:block w-auto" alt="Gridscale" @error="onLogoError"/>
+
+                <h1 class="text-base md:text-lg font-semibold flex items-center gap-2">
+                    <i :class="current.icon" class="text-brand-600"></i> {{ current.label }}
+                </h1>
+
+                <div class="ml-auto flex items-center gap-3 text-xs md:text-sm text-gray-600">
+                    <span>下書き {{ stats.drafts }} / 公開 {{ stats.published }}</span>
+                    <button @click="clearAll" class="px-3 py-1 rounded border text-red-600">全データ初期化</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Drawer (mobile) -->
+        <transition name="fade">
+            <div v-if="drawer" class="md:hidden px-4">
+                <div class="card mt-3 p-2 grid grid-cols-2 gap-2">
+                    <button v-for="item in nav" @click="route=item.key; drawer=false"
+                            class="px-3 py-2 rounded-xl border text-left flex items-center gap-2 hover:bg-brand-50">
+                        <i :class="item.icon" class="text-brand-600"></i><span>{{ item.label }}</span>
+                    </button>
+                </div>
+            </div>
+        </transition>
+
+        <!-- ===== Content (News / Whitepapers / Contact / Recruit / Settings) ===== -->
+        <main class="max-w-7xl mx-auto w-full px-4 md:px-6 py-6 space-y-6">
+            <!-- NEWS -->
+            <section v-if="route==='news'" class="space-y-6">
+                <div class="card p-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="font-semibold">ニュース一覧</h2>
+                        <div class="flex items-center gap-2">
+                            <input v-model="filters.news.q" placeholder="検索：タイトル/本文" class="input w-56">
+                            <button @click="openNewsForm()" class="px-3 py-2 rounded-lg btn-primary">
+                                <i class="fa-solid fa-plus mr-1"></i> 新規作成
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 overflow-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="border-b bg-gray-50">
+                            <tr>
+                                <th class="text-left p-2">公開</th>
+                                <th class="text-left p-2">日付</th>
+                                <th class="text-left p-2">タイトル</th>
+                                <th class="text-left p-2">本文</th>
+                                <th class="text-right p-2">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="n in filteredNews" :key="n.id" class="border-b">
+                                <td class="p-2">
+                                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" v-model="n.published" @change="persist()">
+                                        <span class="text-xs" :class="n.published?'text-brand-700':'text-gray-400'">
+                      {{ n.published ? '公開中' : '下書き' }}
+                    </span>
+                                    </label>
+                                </td>
+                                <td class="p-2 whitespace-nowrap">{{ n.date }}</td>
+                                <td class="p-2 font-medium">{{ n.title }}</td>
+                                <td class="p-2 text-gray-600 truncate max-w-[420px]">{{ n.body }}</td>
+                                <td class="p-2 text-right space-x-2 whitespace-nowrap">
+                                    <button @click="openNewsForm(n)" class="px-2 py-1 rounded border hover:bg-gray-50">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                    <button @click="delNews(n.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr v-if="filteredNews.length===0">
+                                <td colspan="5" class="p-6 text-center text-gray-500">該当なし</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Editor -->
+                <transition name="fade">
+                    <div v-if="modals.news" class="card p-4">
+                        <h3 class="font-semibold mb-3">{{ newsForm.id ? 'ニュースを編集' : 'ニュースを作成' }}</h3>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <label class="block">タイトル
+                                <input v-model="newsForm.title" class="mt-1 w-full input"/>
+                            </label>
+                            <label class="block">日付
+                                <input v-model="newsForm.date" type="date" class="mt-1 w-full input"/>
+                            </label>
+                            <label class="block md:col-span-2">本文
+                                <textarea v-model="newsForm.body" rows="6" class="mt-1 w-full input"></textarea>
+                            </label>
+                            <label class="inline-flex items-center gap-2">
+                                <input type="checkbox" v-model="newsForm.published"><span>公開する</span>
+                            </label>
+                            <div class="md:col-span-2 flex items-center justify-end gap-2">
+                                <button @click="modals.news=false" class="px-3 py-2 rounded border">キャンセル</button>
+                                <button @click="saveNews" class="px-3 py-2 rounded-lg btn-primary">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+            </section>
+
+            <!-- WHITEPAPERS -->
+            <section v-if="route==='whitepapers'" class="space-y-6">
+                <div class="card p-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="font-semibold">ホワイトペーパー</h2>
+                        <div class="flex items-center gap-2">
+                            <input v-model="filters.wp.q" placeholder="検索：タイトル/タグ" class="input w-56">
+                            <button @click="openWPForm()" class="px-3 py-2 rounded-lg btn-primary">
+                                <i class="fa-solid fa-plus mr-1"></i> 新規登録
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-3 gap-4 mt-4">
+                        <article v-for="w in filteredWP" :key="w.id" class="card p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="font-semibold">{{ w.title }}</h3>
+                                <span class="text-xs px-2 py-0.5 rounded-full"
+                                      :class="w.published?'bg-brand-100 text-brand-800':'bg-gray-100 text-gray-700'">
+                  {{ w.published ? '公開' : '下書き' }}
+                </span>
+                            </div>
+                            <p class="text-sm text-gray-600 line-clamp-3">{{ w.desc }}</p>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <span v-for="t in (w.tags||[])" class="tag">{{ t }}</span>
+                            </div>
+                            <div class="mt-4 flex items-center justify-between text-sm">
+                                <a v-if="w.url" :href="w.url" target="_blank" class="text-brand-700 hover:underline">
+                                    <i class="fa-solid fa-file-arrow-down mr-1"></i> プレビュー/ダウンロード
+                                </a>
+                                <span class="text-gray-500 ml-auto">{{ w.date }}</span>
+                            </div>
+                            <div class="mt-3 flex gap-2">
+                                <button @click="openWPForm(w)" class="px-2 py-1 rounded border hover:bg-gray-50">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button @click="delWP(w.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </article>
+                    </div>
+                    <p v-if="filteredWP.length===0" class="text-center text-gray-500 py-10">登録がありません</p>
+                </div>
+
+                <!-- Editor -->
+                <transition name="fade">
+                    <div v-if="modals.wp" class="card p-4">
+                        <h3 class="font-semibold mb-3">{{ wpForm.id ? 'ホワイトペーパーを編集' : 'ホワイトペーパーを登録' }}</h3>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <label class="block">タイトル
+                                <input v-model="wpForm.title" class="mt-1 w-full input"/>
+                            </label>
+                            <label class="block">公開日
+                                <input v-model="wpForm.date" type="date" class="mt-1 w-full input"/>
+                            </label>
+                            <label class="block md:col-span-2">説明
+                                <textarea v-model="wpForm.desc" rows="4" class="mt-1 w-full input"></textarea>
+                            </label>
+                            <label class="block">公開URL（PDF等）
+                                <input v-model="wpForm.url" placeholder="https://example.com/whitepaper.pdf" class="mt-1 w-full input"/>
+                            </label>
+                            <label class="block">タグ（, 区切り）
+                                <input v-model="wpTags" placeholder="DX, AI, 金融" class="mt-1 w-full input"/>
+                            </label>
+                            <label class="inline-flex items-center gap-2">
+                                <input type="checkbox" v-model="wpForm.published"><span>公開する</span>
+                            </label>
+                            <div class="md:col-span-2 flex items-center justify-end gap-2">
+                                <button @click="modals.wp=false" class="px-3 py-2 rounded border">キャンセル</button>
+                                <button @click="saveWP" class="px-3 py-2 rounded-lg btn-primary">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+            </section>
+
+            <!-- CONTACT -->
+            <section v-if="route==='contact'" class="space-y-6">
+                <div class="card p-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="font-semibold">お問い合わせ</h2>
+                        <div class="flex items-center gap-2">
+                            <select v-model="filters.contact.status" class="input">
+                                <option value="">すべて</option>
+                                <option value="open">未対応</option>
+                                <option value="replied">返信済み</option>
+                            </select>
+                            <input v-model="filters.contact.q" placeholder="検索：名前/件名/本文" class="input w-56">
+                        </div>
+                    </div>
+
+                    <div class="mt-4 overflow-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="border-b bg-gray-50">
+                            <tr>
+                                <th class="text-left p-2">日時</th>
+                                <th class="text-left p-2">氏名</th>
+                                <th class="text-left p-2">件名</th>
+                                <th class="text-left p-2">内容</th>
+                                <th class="text-left p-2">状態</th>
+                                <th class="text-right p-2">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="i in filteredContacts" :key="i.id" class="border-b align-top">
+                                <td class="p-2 whitespace-nowrap">{{ i.createdAt }}</td>
+                                <td class="p-2">{{ i.name }}<div class="text-xs text-gray-500">{{ i.email }}</div></td>
+                                <td class="p-2">{{ i.subject || '-' }}</td>
+                                <td class="p-2 max-w-[420px]">
+                                    <div class="text-gray-700 whitespace-pre-wrap line-clamp-3">{{ i.message }}</div>
+                                </td>
+                                <td class="p-2">
+                    <span class="text-xs px-2 py-0.5 rounded-full"
+                          :class="i.status==='replied'?'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800'">
+                      {{ i.status==='replied'?'返信済み':'未対応' }}
+                    </span>
+                                </td>
+                                <td class="p-2 text-right space-x-2 whitespace-nowrap">
+                                    <button @click="openContact(i)" class="px-2 py-1 rounded border hover:bg-gray-50">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                    <button @click="delContact(i.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr v-if="filteredContacts.length===0">
+                                <td colspan="6" class="p-6 text-center text-gray-500">該当なし</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Detail & Reply -->
+                <transition name="fade">
+                    <div v-if="modals.contact" class="card p-4">
+                        <div class="flex items-start justify-between gap-6">
+                            <div class="flex-1">
+                                <h3 class="font-semibold mb-1">{{ contactForm.subject || '（件名なし）' }}</h3>
+                                <div class="text-sm text-gray-500 mb-4">{{ contactForm.name }} ・ {{ contactForm.email }} ・ {{ contactForm.createdAt }}</div>
+                                <p class="whitespace-pre-wrap text-gray-800">{{ contactForm.message }}</p>
+                                <div v-if="(contactForm.replies||[]).length" class="mt-6">
+                                    <h4 class="font-semibold text-sm mb-2">返信履歴</h4>
+                                    <div class="space-y-2">
+                                        <div v-for="r in contactForm.replies" class="p-3 rounded-lg bg-gray-50 border">
+                                            <div class="text-xs text-gray-500 mb-1">{{ r.at }}</div>
+                                            <div class="whitespace-pre-wrap text-sm text-gray-800">{{ r.body }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="w-full max-w-md">
+                                <label class="block text-sm font-medium">返信内容</label>
+                                <textarea v-model="replyBody" rows="8" class="mt-1 w-full input"></textarea>
+                                <div class="mt-3 flex items-center justify-end gap-2">
+                                    <button @click="modals.contact=false" class="px-3 py-2 rounded border">閉じる</button>
+                                    <button :disabled="!replyBody.trim()" @click="sendReply"
+                                            class="px-3 py-2 rounded-lg btn-primary disabled:opacity-50">
+                                        <i class="fa-solid fa-paper-plane mr-1"></i> 返信を記録
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+            </section>
+
+            <!-- RECRUIT -->
+            <section v-if="route==='recruit'" class="space-y-6">
+                <div class="card p-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="font-semibold">採用エントリー</h2>
+                        <div class="flex items-center gap-2">
+                            <select v-model="filters.rec.status" class="input">
+                                <option value="">すべて</option>
+                                <option value="new">新規</option>
+                                <option value="screening">書類審査</option>
+                                <option value="interview">面談</option>
+                                <option value="offer">内定</option>
+                                <option value="rejected">不合格</option>
+                            </select>
+                            <input v-model="filters.rec.q" placeholder="検索：名前/スキル/メモ" class="input w-56">
+                            <button @click="openRecForm()" class="px-3 py-2 rounded-lg btn-primary">
+                                <i class="fa-solid fa-user-plus mr-1"></i> 手動登録
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 overflow-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="border-b bg-gray-50">
+                            <tr>
+                                <th class="text-left p-2">応募日</th>
+                                <th class="text-left p-2">氏名</th>
+                                <th class="text-left p-2">連絡先</th>
+                                <th class="text-left p-2">スキル</th>
+                                <th class="text-left p-2">状態</th>
+                                <th class="text-right p-2">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="c in filteredRec" :key="c.id" class="border-b">
+                                <td class="p-2 whitespace-nowrap">{{ c.appliedAt }}</td>
+                                <td class="p-2 font-medium">{{ c.name }}</td>
+                                <td class="p-2">
+                                    <div class="text-xs text-gray-500">{{ c.email }}</div>
+                                    <div class="text-xs text-gray-500">{{ c.tel || '-' }}</div>
+                                </td>
+                                <td class="p-2 text-gray-700">{{ c.skills || '-' }}</td>
+                                <td class="p-2">
+                                    <select v-model="c.stage" @change="persist()" class="px-2 py-1 rounded border bg-white">
+                                        <option value="new">新規</option>
+                                        <option value="screening">書類審査</option>
+                                        <option value="interview">面談</option>
+                                        <option value="offer">内定</option>
+                                        <option value="rejected">不合格</option>
+                                    </select>
+                                </td>
+                                <td class="p-2 text-right space-x-2 whitespace-nowrap">
+                                    <button @click="openRecForm(c)" class="px-2 py-1 rounded border hover:bg-gray-50">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                    <button @click="delRec(c.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr v-if="filteredRec.length===0">
+                                <td colspan="6" class="p-6 text-center text-gray-500">該当なし</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Editor -->
+                <transition name="fade">
+                    <div v-if="modals.rec" class="card p-4">
+                        <h3 class="font-semibold mb-3">{{ recForm.id ? '応募者を編集' : '応募者を登録' }}</h3>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <label class="block">氏名
+                                <input v-model="recForm.name" class="mt-1 w-full input"/>
+                            </label>
+                            <label class="block">応募日
+                                <input v-model="recForm.appliedAt" type="date" class="mt-1 w-full input"/>
+                            </label>
+                            <label class="block">メール
+                                <input v-model="recForm.email" type="email" class="mt-1 w-full input"/>
+                            </label>
+                            <label class="block">電話
+                                <input v-model="recForm.tel" class="mt-1 w-full input"/>
+                            </label>
+                            <label class="block md:col-span-2">スキル
+                                <input v-model="recForm.skills" placeholder="Java / Vue / AWS 等" class="mt-1 w-full input"/>
+                            </label>
+                            <label class="block md:col-span-2">メモ
+                                <textarea v-model="recForm.note" rows="4" class="mt-1 w-full input"></textarea>
+                            </label>
+                            <div class="md:col-span-2 flex items-center justify-end gap-2">
+                                <button @click="modals.rec=false" class="px-3 py-2 rounded border">キャンセル</button>
+                                <button @click="saveRec" class="px-3 py-2 rounded-lg btn-primary">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+            </section>
+
+            <!-- SETTINGS -->
+            <section v-if="route==='settings'" class="space-y-6">
+                <!-- Publish -->
+                <div class="card p-4">
+                    <h2 class="font-semibold mb-4">公開・連携設定（ダミー）</h2>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <h3 class="font-semibold mb-2">News公開先</h3>
+                            <label class="flex items-center gap-2 mb-2"><input type="checkbox" v-model="settings.publish.home"> TOPページ（/index.htmlのNEWS）</label>
+                            <label class="flex items-center gap-2 mb-2"><input type="checkbox" v-model="settings.publish.api"> APIエンドポイント（/api/news）</label>
+                            <p class="text-xs text-gray-500">※フロント側では保存のみ。サーバ側実装時に参照してください。</p>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold mb-2">通知</h3>
+                            <label class="flex items-center gap-2 mb-2"><input type="checkbox" v-model="settings.notify.mail"> 新規問い合わせのメール通知</label>
+                            <label class="flex items-center gap-2"><input type="checkbox" v-model="settings.notify.slack"> Slack通知</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Branding -->
+                <div class="card p-4">
+                    <h2 class="font-semibold mb-4">ブランド設定（ロゴ）</h2>
+                    <div class="grid md:grid-cols-2 gap-6 items-start">
+                        <div>
+                            <label class="block text-sm font-medium">ロゴURL</label>
+                            <input v-model="branding.logoUrl" class="mt-1 w-full input" placeholder="/img/logo.png">
+                            <label class="block text-sm font-medium mt-4">ロゴ画像をアップロード</label>
+                            <input type="file" accept="image/*" class="mt-1 w-full" @change="uploadLogo($event)">
+                            <label class="block text-sm font-medium mt-4">ロゴ高さ（px）</label>
+                            <input type="range" min="20" max="64" v-model.number="branding.logoH" class="w-full">
+                            <div class="mt-2 text-sm text-gray-600">{{ branding.logoH }} px</div>
+                            <div class="mt-4 flex gap-2">
+                                <button @click="saveBranding" class="px-3 py-2 rounded-lg btn-primary">保存</button>
+                                <button @click="resetBranding" class="px-3 py-2 rounded border">初期化</button>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="border rounded-xl p-4 bg-gray-50">
+                                <div class="text-sm text-gray-600 mb-2">プレビュー</div>
+                                <div class="flex items-center gap-3">
+                                    <img :src="branding.logoUrl" :style="{height: branding.logoH + 'px'}" class="w-auto" alt="logo preview" @error="onLogoError">
+                                    <span class="text-gray-700 font-medium">Gridscale CMS</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security -->
+                <div class="card p-4">
+                    <h2 class="font-semibold mb-4">セキュリティ（管理者パスコード）</h2>
+                    <label class="inline-flex items-center gap-2">
+                        <input type="checkbox" v-model="security.adminEnabled">
+                        <span>管理者パスコードを有効化（ユーザー登録は管理者のみ）</span>
+                    </label>
+                    <div class="grid md:grid-cols-2 gap-4 mt-4">
+                        <label class="block">新しいパスコード
+                            <input v-model="security.newPass" type="password" class="mt-1 w-full input" placeholder="8文字以上">
+                        </label>
+                        <label class="block">確認用
+                            <input v-model="security.newPass2" type="password" class="mt-1 w-full input" placeholder="もう一度">
+                        </label>
+                    </div>
+                    <div class="mt-3 flex items-center gap-2">
+                        <button @click="saveAdminPass" class="px-3 py-2 rounded-lg btn-primary">保存</button>
+                        <button @click="clearAdminPass" class="px-3 py-2 rounded border">無効化</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">
+                        ※ パスコードはブラウザにソルト付きハッシュで保存されます（デモ用途）。本番はサーバ側（Spring Security 等）で実装してください。
+                    </p>
+                </div>
+            </section>
+
+        </main>
+    </section>
+</div>
+
+<script>
+    const STORAGE_KEY='gridscale_cms_v1_light_logo_users_collapse';
+
+    const app = Vue.createApp({
+        data(){
+            return {
+                route:'news', drawer:false,
+                // UI状態（サイドバー折りたたみ）
+                ui:{ sidebarCollapsed:false },
+
+                modals:{news:false, wp:false, contact:false, rec:false},
+                filters:{ news:{q:''}, wp:{q:''}, contact:{q:'', status:''}, rec:{q:'', status:''} },
+                news:[], whitepapers:[], contacts:[], recruits:[],
+                users:[],
+                userForm:{ name:'', email:'', role:'editor', active:true, tempPass:'', note:'' },
+                newsForm:{id:null,title:'',date:'',body:'',published:true},
+                wpForm:{id:null,title:'',date:'',desc:'',url:'',tags:[],published:false}, wpTags:'',
+                contactForm:{}, replyBody:'',
+                recForm:{id:null,name:'',appliedAt:'',email:'',tel:'',skills:'',note:'',stage:'new'},
+                settings:{ publish:{home:true,api:false}, notify:{mail:true,slack:false} },
+                branding:{ logoUrl:'/img/logo.png', logoH:28 },
+                security:{ adminEnabled:false, adminSalt:'', adminHash:'', newPass:'', newPass2:'' },
+                adminUnlocked:false,
+                adminPassInput:''
+            }
+        },
+        computed:{
+            nav(){
+                return [
+                    {key:'news',label:'News',icon:'fa-solid fa-bullhorn',badge:()=>this.news.filter(n=>n.published).length},
+                    {key:'whitepapers',label:'WhitePaper',icon:'fa-solid fa-file-lines',badge:()=>this.whitepapers.filter(w=>w.published).length},
+                    {key:'contact',label:'お問い合わせ',icon:'fa-solid fa-inbox',badge:()=>this.contacts.filter(c=>c.status==='open').length},
+                    {key:'recruit',label:'採用',icon:'fa-solid fa-users',badge:()=>this.recruits.length},
+                    {key:'settings',label:'設定',icon:'fa-solid fa-gear',badge:()=>null}
+                ];
+            },
+            current(){ return this.nav.find(n=>n.key===this.route) || this.nav[0]; },
+            filteredNews(){
+                const q=this.filters.news.q.trim().toLowerCase();
+                return this.news.filter(n=>!q||(n.title+n.body).toLowerCase().includes(q))
+                    .sort((a,b)=>(b.date||'').localeCompare(a.date||'')); },
+            filteredWP(){
+                const q=this.filters.wp.q.trim().toLowerCase();
+                return this.whitepapers.filter(w=>{
+                    const text=(w.title+' '+(w.tags||[]).join(' ')+' '+(w.desc||'')).toLowerCase();
+                    return !q || text.includes(q);
+                }).sort((a,b)=>(b.date||'').localeCompare(a.date||'')); },
+            filteredContacts(){
+                const q=this.filters.contact.q.trim().toLowerCase(), st=this.filters.contact.status;
+                return this.contacts.filter(i=>{
+                    const hit=!q||(i.name+i.subject+i.message).toLowerCase().includes(q);
+                    const ok=!st||i.status===st; return hit&&ok;
+                }).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).reverse(); },
+            filteredRec(){
+                const q=this.filters.rec.q.trim().toLowerCase(), st=this.filters.rec.status;
+                return this.recruits.filter(r=>{
+                    const hit=!q||(r.name+' '+(r.skills||'')+' '+(r.note||'')).toLowerCase().includes(q);
+                    const ok=!st||r.stage===st; return hit&&ok;
+                }).sort((a,b)=>(b.appliedAt||'').localeCompare(a.appliedAt||'')); },
+            stats(){
+                return {
+                    drafts: this.news.filter(n=>!n.published).length + this.whitepapers.filter(w=>!w.published).length,
+                    published: this.news.filter(n=>n.published).length + this.whitepapers.filter(w=>w.published).length
+                }
+            },
+            recentUsers(){
+                return [...this.users].sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||'')).slice(0,5);
+            }
+        },
+        created(){
+            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+            Object.assign(this.$data, {...this.$data, ...saved});
+
+            // 初回サンプル
+            if(!saved.news){
+                this.news = [
+                    { id:crypto.randomUUID(), title:'ホームページをリニューアルしました', date:new Date().toISOString().slice(0,10), body:'静的から動的配信へ。今後も定期的に更新します。', published:true },
+                    { id:crypto.randomUUID(), title:'夏季休業のお知らせ', date:'2025-08-10', body:'8/13〜8/16は夏季休業です。', published:true },
+                ];
+            }
+            if(!saved.whitepapers){
+                this.whitepapers = [
+                    { id:crypto.randomUUID(), title:'DX推進ガイド（製造業編）', date:'2025-07-15', desc:'現場起点のカイゼンから始めるDXの実践手順。', url:'', tags:['DX','製造'], published:false }
+                ];
+            }
+            if(!saved.contacts){
+                this.contacts = [
+                    { id:crypto.randomUUID(), name:'山田 太郎', email:'taro@example.com', subject:'SESのご相談', message:'9月から参画可能なJavaエンジニアのご紹介をお願いしたいです。', createdAt:'2025-09-10 10:24', status:'open', replies:[] },
+                    { id:crypto.randomUUID(), name:'Suzuki', email:'suzuki@corp.jp', subject:'Webサイトの制作', message:'LP制作の概算見積をご相談できますか？', createdAt:'2025-09-09 16:02', status:'replied', replies:[{at:'2025-09-09 17:10', body:'お問い合わせありがとうございます。詳細要件をお伺いできますか？'}] },
+                ];
+            }
+            if(!saved.recruits){
+                this.recruits = [
+                    { id:crypto.randomUUID(), name:'佐藤 花子', email:'hanako@example.jp', tel:'', skills:'Java / Spring / Vue', appliedAt:'2025-09-12', note:'バックエンド強め', stage:'screening' }
+                ];
+            }
+            if(!saved.users){
+                this.users = [
+                    { id:crypto.randomUUID(), name:'Admin', email:'admin@example.com', role:'admin', active:true, note:'デモ管理者', createdAt:new Date().toISOString(), auth:{ salt:'', hash:'' } }
+                ];
+            }
+
+            // セッションのロック状態
+            this.adminUnlocked = sessionStorage.getItem('cms_admin_unlocked') === '1' || !this.security.adminEnabled;
+
+            this.persist();
+        },
+        methods:{
+            // === UI ===
+            toggleSidebar(){
+                this.ui.sidebarCollapsed = !this.ui.sidebarCollapsed;
+                this.persist();
+            },
+
+            // === Persistence & Utils ===
+            persist(){
+                const payload = {
+                    route:this.route, ui:this.ui,
+                    news:this.news, whitepapers:this.whitepapers,
+                    contacts:this.contacts, recruits:this.recruits, users:this.users,
+                    settings:this.settings, branding:this.branding, security:{
+                        adminEnabled:this.security.adminEnabled, adminSalt:this.security.adminSalt, adminHash:this.security.adminHash
+                    }
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+            },
+            clearAll(){
+                if(confirm('全データをlocalStorageから削除します。よろしいですか？')){
+                    localStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem('cms_admin_unlocked'); location.reload();
+                }
+            },
+            async hashHex(strOrBytes){
+                const data = (strOrBytes instanceof Uint8Array) ? strOrBytes : new TextEncoder().encode(String(strOrBytes));
+                const buf = await crypto.subtle.digest('SHA-256', data);
+                return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+            },
+            randomBytes(n){ const a=new Uint8Array(n); crypto.getRandomValues(a); return a; },
+            async hashPassword(pass, saltHex){
+                const salt = saltHex ? Uint8Array.from(saltHex.match(/.{1,2}/g).map(h=>parseInt(h,16))) : this.randomBytes(16);
+                const concat = new Uint8Array(salt.length + new TextEncoder().encode(pass).length);
+                concat.set(salt,0); concat.set(new TextEncoder().encode(pass), salt.length);
+                const hash = await this.hashHex(concat);
+                const saltOut = Array.from(salt).map(b=>b.toString(16).padStart(2,'0')).join('');
+                return { salt: saltOut, hash };
+            },
+
+            // === Admin Lock ===
+            async unlockAdmin(){
+                if(!this.security.adminEnabled){
+                    this.adminUnlocked = true; sessionStorage.setItem('cms_admin_unlocked','1'); return;
+                }
+                const pass = this.adminPassInput || '';
+                if(pass.length<1){ alert('パスコードを入力してください'); return; }
+                const { hash } = await this.hashPassword(pass, this.security.adminSalt);
+                if(hash === this.security.adminHash){
+                    this.adminUnlocked = true; sessionStorage.setItem('cms_admin_unlocked','1'); this.adminPassInput='';
+                }else{
+                    alert('パスコードが違います');
+                }
+            },
+            relockAdmin(){
+                this.adminUnlocked = false; sessionStorage.removeItem('cms_admin_unlocked');
+            },
+
+            // === User Registration (Admin only) ===
+            roleLabel(r){ return r==='admin'?'管理者':(r==='editor'?'編集者':'閲覧のみ'); },
+            generateTempPass(){
+                const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+                let s=''; for(let i=0;i<12;i++){ s+=chars[Math.floor(Math.random()*chars.length)]; }
+                this.userForm.tempPass=s;
+            },
+            async createUser(){
+                if(this.security.adminEnabled && !this.adminUnlocked){ alert('管理者ロックを解除してください'); return; }
+                const f=this.userForm;
+                if(!f.name.trim()) return alert('氏名は必須です');
+                if(!f.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return alert('メールの形式が不正です');
+                if(!f.tempPass || f.tempPass.length<8) return alert('初期パスワードは8文字以上にしてください');
+                const {salt, hash} = await this.hashPassword(f.tempPass);
+                const user = {
+                    id: crypto.randomUUID(),
+                    name: f.name.trim(),
+                    email: f.email.trim(),
+                    role: f.role,
+                    active: !!f.active,
+                    note: f.note || '',
+                    createdAt: new Date().toISOString(),
+                    auth: { salt, hash }
+                };
+                this.users.push(user);
+                this.persist();
+                this.userForm={ name:'', email:'', role:'editor', active:true, tempPass:'', note:'' };
+                alert('ユーザーを登録しました（初期パスワードは本人へ安全に共有してください）');
+            },
+
+            // === News / WP / Contact / Recruit ===
+            openNewsForm(n=null){
+                this.newsForm = n ? JSON.parse(JSON.stringify(n)) :
+                    { id:null, title:'', date:new Date().toISOString().slice(0,10), body:'', published:true };
+                this.modals.news = true;
+            },
+            saveNews(){
+                const f=this.newsForm;
+                if(!f.title?.trim()) return alert('タイトルは必須です');
+                if(!f.date) return alert('日付は必須です');
+                if(f.id){
+                    const idx=this.news.findIndex(x=>x.id===f.id);
+                    if(idx>-1) this.news[idx]=JSON.parse(JSON.stringify(f));
+                }else{
+                    f.id=crypto.randomUUID(); this.news.push(JSON.parse(JSON.stringify(f)));
+                }
+                this.modals.news=false; this.persist();
+            },
+            delNews(id){
+                if(confirm('削除しますか？')){
+                    this.news=this.news.filter(n=>n.id!==id); this.persist();
+                }
+            },
+
+            openWPForm(w=null){
+                this.wpForm = w ? JSON.parse(JSON.stringify(w)) :
+                    { id:null, title:'', date:new Date().toISOString().slice(0,10), desc:'', url:'', tags:[], published:false };
+                this.wpTags = (this.wpForm.tags||[]).join(', ');
+                this.modals.wp = true;
+            },
+            saveWP(){
+                const f=this.wpForm;
+                f.tags=this.wpTags.split(',').map(s=>s.trim()).filter(Boolean);
+                if(!f.title?.trim()) return alert('タイトルは必須です');
+                if(f.id){
+                    const idx=this.whitepapers.findIndex(x=>x.id===f.id);
+                    if(idx>-1) this.whitepapers[idx]=JSON.parse(JSON.stringify(f));
+                }else{
+                    f.id=crypto.randomUUID(); this.whitepapers.push(JSON.parse(JSON.stringify(f)));
+                }
+                this.modals.wp=false; this.persist();
+            },
+            delWP(id){
+                if(confirm('削除しますか？')){
+                    this.whitepapers=this.whitepapers.filter(w=>w.id!==id); this.persist();
+                }
+            },
+
+            openContact(i){
+                this.contactForm = JSON.parse(JSON.stringify(i));
+                this.replyBody=''; this.modals.contact=true;
+            },
+            sendReply(){
+                const body=this.replyBody.trim(); if(!body) return;
+                const idx=this.contacts.findIndex(x=>x.id===this.contactForm.id);
+                if(idx>-1){
+                    this.contacts[idx].replies=this.contacts[idx].replies||[];
+                    this.contacts[idx].replies.push({at:new Date().toISOString().slice(0,16).replace('T',' '), body});
+                    this.contacts[idx].status='replied';
+                    this.persist(); this.openContact(this.contacts[idx]); this.replyBody='';
+                    alert('返信を記録しました（送信はダミー）');
+                }
+            },
+            delContact(id){
+                if(confirm('削除しますか？')){
+                    this.contacts=this.contacts.filter(n=>n.id!==id); this.persist();
+                }
+            },
+
+            openRecForm(c=null){
+                this.recForm = c ? JSON.parse(JSON.stringify(c)) :
+                    { id:null, name:'', appliedAt:new Date().toISOString().slice(0,10), email:'', tel:'', skills:'', note:'', stage:'new' };
+                this.modals.rec=true;
+            },
+            saveRec(){
+                const f=this.recForm;
+                if(!f.name?.trim()) return alert('氏名は必須です');
+                if(!f.appliedAt) return alert('応募日は必須です');
+                if(f.id){
+                    const idx=this.recruits.findIndex(x=>x.id===f.id);
+                    if(idx>-1) this.recruits[idx]=JSON.parse(JSON.stringify(f));
+                }else{
+                    f.id=crypto.randomUUID(); this.recruits.push(JSON.parse(JSON.stringify(f)));
+                }
+                this.modals.rec=false; this.persist();
+            },
+            delRec(id){
+                if(confirm('削除しますか？')){
+                    this.recruits=this.recruits.filter(n=>n.id!==id); this.persist();
+                }
+            },
+
+            // import/export
+            exportJSON(){
+                const blob=new Blob([localStorage.getItem(STORAGE_KEY)||'{}'],{type:'application/json'});
+                const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gridscale_cms.json'; a.click(); URL.revokeObjectURL(a.href);
+            },
+            exportCSV(){
+                const rows=[['type','id','date','title','body','published']];
+                this.news.forEach(n=>rows.push(['news',n.id,n.date,escapeCSV(n.title),escapeCSV(n.body),n.published]));
+                const csv=rows.map(r=>r.join(',')).join('\n');
+                const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gridscale_news.csv'; a.click(); URL.revokeObjectURL(a.href);
+            },
+            importFile(e){
+                const file=e.target.files[0]; if(!file) return;
+                const reader=new FileReader();
+                reader.onload=()=>{
+                    try{
+                        const obj=JSON.parse(reader.result);
+                        if(confirm('現在のデータを上書きしますか？')){
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+                            sessionStorage.removeItem('cms_admin_unlocked');
+                            location.reload();
+                        }
+                    }catch{ alert('JSONの読み込みに失敗しました'); }
+                };
+                reader.readAsText(file,'utf-8');
+            },
+
+            // Branding / Logo
+            uploadLogo(e){
+                const f=e.target.files?.[0]; if(!f) return;
+                const reader=new FileReader();
+                reader.onload=()=>{ this.branding.logoUrl = reader.result; this.persist(); };
+                reader.readAsDataURL(f);
+            },
+            saveBranding(){ this.persist(); alert('ブランド設定を保存しました'); },
+            resetBranding(){
+                this.branding={ logoUrl:'/img/logo.png', logoH:28 };
+                this.persist();
+            },
+            onLogoError(ev){
+                ev.target.onerror=null;
+                ev.target.src='data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="160" height="40"><rect width="160" height="40" fill="#eef2ff"/><text x="8" y="26" font-size="16" fill="#4f46e5">Logo not found</text></svg>');
+            }
+        }
+    });
+    function escapeCSV(s){ s=(s??'')+''; return (s.includes('"')||s.includes(',')||s.includes('\n')) ? `"${s.replaceAll('"','""')}"` : s; }
+    app.mount('#app');
+</script>
+</body>
+</html>

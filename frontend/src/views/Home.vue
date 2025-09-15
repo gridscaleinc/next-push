@@ -3,7 +3,7 @@
     <div class="hero-section">
       <h1>Welcome to Next Push</h1>
       <p class="hero-subtitle">A modern web application built with Spring Boot and Vue.js</p>
-      
+
       <div class="features-grid">
         <div class="feature-card">
           <h3>🚀 Spring Boot Backend</h3>
@@ -18,7 +18,7 @@
           <p>Maven handles both backend and frontend builds seamlessly</p>
         </div>
       </div>
-      
+
       <div class="api-test">
         <button @click="testBackendConnection" class="test-button">
           Test Backend Connection
@@ -36,16 +36,16 @@ import axios from 'axios'
 
 export default {
   name: 'Home',
-  data() {
+  data () {
     return {
       connectionStatus: null
     }
   },
   methods: {
-    async testBackendConnection() {
+    async testBackendConnection () {
       this.connectionStatus = null
       try {
-        const response = await axios.get('/api/health')
+        await axios.get('/api/health')
         this.connectionStatus = {
           type: 'success',
           message: 'Backend connection successful!'

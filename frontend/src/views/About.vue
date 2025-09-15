@@ -3,13 +3,13 @@
     <div class="about-content">
       <h1>About Next Push</h1>
       <p class="intro">
-        Next Push is a full-stack web application template that combines the power of 
+        Next Push is a full-stack web application template that combines the power of
         Spring Boot for the backend with the modern Vue.js framework for the frontend.
       </p>
 
       <div class="tech-stack">
         <h2>Technology Stack</h2>
-        
+
         <div class="stack-section">
           <h3>🏗️ Backend Technologies</h3>
           <ul>
@@ -44,9 +44,9 @@
       <div class="project-info">
         <h2>Project Structure</h2>
         <p>
-          This project follows a standard Maven structure with the backend code in 
-          <code>src/main/java</code> and the frontend code in the <code>frontend/</code> 
-          directory. The build process automatically compiles the Vue.js application and 
+          This project follows a standard Maven structure with the backend code in
+          <code>src/main/java</code> and the frontend code in the <code>frontend/</code>
+          directory. The build process automatically compiles the Vue.js application and
           serves it through Spring Boot's static resource handling.
         </p>
       </div>
