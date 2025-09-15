@@ -34,29 +34,12 @@
         </button>
       </nav>
 
-      <!-- Admin / User Registration -->
+      <!-- User Registration -->
       <div v-show="!ui.sidebarCollapsed" class="card p-4 mt-3">
         <div class="flex items-center justify-between">
           <h3 class="font-semibold flex items-center gap-2">
             <i class="fa-solid fa-shield-halved text-brand-600"></i> 管理者
           </h3>
-          <span v-if="security.adminEnabled"
-                class="text-xs px-2 py-0.5 rounded-full"
-                :class="adminUnlocked ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'">
-            {{ adminUnlocked ? '解除済み' : 'ロック中' }}
-          </span>
-        </div>
-
-        <!-- Unlock -->
-        <div v-if="!adminUnlocked" class="mt-2">
-          <label class="block text-sm">管理者パスコード</label>
-          <input v-model="adminPassInput" type="password" class="mt-1 w-full input" placeholder="••••••••">
-          <button @click="unlockAdmin" class="mt-2 w-full px-3 py-2 rounded-lg btn-primary">
-            ロック解除
-          </button>
-          <p class="text-xs text-gray-500 mt-2" v-if="!security.adminEnabled">
-            ※パスコード未設定（デモモード）。だれでも登録可能です。<br>「設定 → セキュリティ」でパスコードを有効化してください。
-          </p>
         </div>
 
         <!-- User Create (Admin only) -->
@@ -64,7 +47,7 @@
           v-if="isAuthenticated && currentUser?.userType === 'admin'"
           :users="users"
           :security="security"
-          :admin-unlocked="adminUnlocked"
+          :admin-unlocked="true"
           @user-created="handleUserCreated"
           @admin-relocked="handleAdminRelocked"
           @password-generated="handlePasswordGenerated"
@@ -141,7 +124,7 @@
         </div>
       </transition>
 
-      <!-- ===== Content (News / Whitepapers / Contact / Recruit / Settings) ===== -->
+      <!-- ===== Content (News / Whitepapers / Contact / Recruit) ===== -->
       <main class="max-w-7xl mx-auto w-full px-4 md:px-6 py-6 space-y-6">
         <!-- NEWS -->
         <section v-if="route==='news'" class="space-y-6">
@@ -543,79 +526,6 @@
           </transition>
         </section>
 
-        <!-- SETTINGS -->
-        <section v-if="route==='settings'" class="space-y-6">
-          <!-- Publish -->
-          <div class="card p-4">
-            <h2 class="font-semibold mb-4">公開・連携設定（ダミー）</h2>
-            <div class="grid md:grid-cols-2 gap-6">
-              <div>
-                <h3 class="font-semibold mb-2">News公開先</h3>
-                <label class="flex items-center gap-2 mb-2"><input type="checkbox" v-model="settings.publish.home"> TOPページ（/index.htmlのNEWS）</label>
-                <label class="flex items-center gap-2 mb-2"><input type="checkbox" v-model="settings.publish.api"> APIエンドポイント（/api/news）</label>
-                <p class="text-xs text-gray-500">※フロント側では保存のみ。サーバ側実装時に参照してください。</p>
-              </div>
-              <div>
-                <h3 class="font-semibold mb-2">通知</h3>
-                <label class="flex items-center gap-2 mb-2"><input type="checkbox" v-model="settings.notify.mail"> 新規問い合わせのメール通知</label>
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="settings.notify.slack"> Slack通知</label>
-              </div>
-            </div>
-          </div>
-
-          <!-- Branding -->
-          <div class="card p-4">
-            <h2 class="font-semibold mb-4">ブランド設定（ロゴ）</h2>
-            <div class="grid md:grid-cols-2 gap-6 items-start">
-              <div>
-                <label class="block text-sm font-medium">ロゴURL</label>
-                <input v-model="branding.logoUrl" class="mt-1 w-full input" placeholder="/img/logo.png">
-                <label class="block text-sm font-medium mt-4">ロゴ画像をアップロード</label>
-                <input type="file" accept="image/*" class="mt-1 w-full" @change="uploadLogo($event)">
-                <label class="block text-sm font-medium mt-4">ロゴ高さ（px）</label>
-                <input type="range" min="20" max="64" v-model.number="branding.logoH" class="w-full">
-                <div class="mt-2 text-sm text-gray-600">{{ branding.logoH }} px</div>
-                <div class="mt-4 flex gap-2">
-                  <button @click="saveBranding" class="px-3 py-2 rounded-lg btn-primary">保存</button>
-                  <button @click="resetBranding" class="px-3 py-2 rounded border">初期化</button>
-                </div>
-              </div>
-              <div>
-                <div class="border rounded-xl p-4 bg-gray-50">
-                  <div class="text-sm text-gray-600 mb-2">プレビュー</div>
-                  <div class="flex items-center gap-3">
-                    <img :src="branding.logoUrl" :style="{height: branding.logoH + 'px'}" class="w-auto" alt="logo preview" @error="onLogoError">
-                    <span class="text-gray-700 font-medium">Gridscale CMS</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Security -->
-          <div class="card p-4">
-            <h2 class="font-semibold mb-4">セキュリティ（管理者パスコード）</h2>
-            <label class="inline-flex items-center gap-2">
-              <input type="checkbox" v-model="security.adminEnabled">
-              <span>管理者パスコードを有効化（ユーザー登録は管理者のみ）</span>
-            </label>
-            <div class="grid md:grid-cols-2 gap-4 mt-4">
-              <label class="block">新しいパスコード
-                <input v-model="security.newPass" type="password" class="mt-1 w-full input" placeholder="8文字以上">
-              </label>
-              <label class="block">確認用
-                <input v-model="security.newPass2" type="password" class="mt-1 w-full input" placeholder="もう一度">
-              </label>
-            </div>
-            <div class="mt-3 flex items-center gap-2">
-              <button @click="saveAdminPass" class="px-3 py-2 rounded-lg btn-primary">保存</button>
-              <button @click="clearAdminPass" class="px-3 py-2 rounded border">無効化</button>
-            </div>
-            <p class="text-xs text-gray-500 mt-2">
-              ※ パスコードはブラウザにソルト付きハッシュで保存されます（デモ用途）。本番はサーバ側（Spring Security 等）で実装してください。
-            </p>
-          </div>
-        </section>
       </main>
     </section>
 
@@ -665,11 +575,8 @@ export default {
       replyBody: '',
       recForm: { id: null, name: '', appliedAt: '', email: '', tel: '', skills: '', note: '', stage: 'new' },
       userForm: { id: null, userName: '', email: '', userType: '', activeFlag: true },
-      settings: { publish: { home: true, api: false }, notify: { mail: true, slack: false } },
       branding: { logoUrl: '/img/logo.png', logoH: 28 },
       security: { adminEnabled: false, adminSalt: '', adminHash: '', newPass: '', newPass2: '' },
-      adminUnlocked: false,
-      adminPassInput: '',
       // Authentication state
       isAuthenticated: false,
       currentUser: null,
@@ -689,8 +596,6 @@ export default {
       if (this.isAuthenticated && this.currentUser?.userType === 'admin') {
         baseNav.push({ key: 'users', label: 'ユーザー', icon: 'fa-solid fa-user-group', badge: () => this.users.filter(u => u.active).length })
       }
-
-      baseNav.push({ key: 'settings', label: '設定', icon: 'fa-solid fa-gear', badge: () => null })
 
       return baseNav
     },
@@ -776,9 +681,6 @@ export default {
       ]
     }
 
-    // セッションのロック状態
-    this.adminUnlocked = sessionStorage.getItem('cms_admin_unlocked') === '1' || !this.security.adminEnabled
-
     // Initialize authentication
     this.initializeAuth()
 
@@ -800,7 +702,6 @@ export default {
         whitepapers: this.whitepapers,
         recruits: this.recruits,
         users: this.users,
-        settings: this.settings,
         branding: this.branding,
         security: {
           adminEnabled: this.security.adminEnabled, adminSalt: this.security.adminSalt, adminHash: this.security.adminHash
@@ -810,7 +711,7 @@ export default {
     },
     clearAll () {
       if (confirm('全データをlocalStorageから削除します。よろしいですか？')) {
-        localStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem('cms_admin_unlocked'); location.reload()
+        localStorage.removeItem(STORAGE_KEY); location.reload()
       }
     },
     async hashHex (strOrBytes) {
@@ -826,21 +727,6 @@ export default {
       const hash = await this.hashHex(concat)
       const saltOut = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('')
       return { salt: saltOut, hash }
-    },
-
-    // === Admin Lock ===
-    async unlockAdmin () {
-      if (!this.security.adminEnabled) {
-        this.adminUnlocked = true; sessionStorage.setItem('cms_admin_unlocked', '1'); return
-      }
-      const pass = this.adminPassInput || ''
-      if (pass.length < 1) { alert('パスコードを入力してください'); return }
-      const { hash } = await this.hashPassword(pass, this.security.adminSalt)
-      if (hash === this.security.adminHash) {
-        this.adminUnlocked = true; sessionStorage.setItem('cms_admin_unlocked', '1'); this.adminPassInput = ''
-      } else {
-        alert('パスコードが違います')
-      }
     },
 
     // === Authentication Methods ===
@@ -922,10 +808,6 @@ export default {
     handleUserCreated (user) {
       this.users.push(user)
       this.persist()
-    },
-    handleAdminRelocked () {
-      this.adminUnlocked = false
-      sessionStorage.removeItem('cms_admin_unlocked')
     },
     handlePasswordGenerated (password) {
       // Optional: handle password generation event if needed
@@ -1246,8 +1128,6 @@ export default {
         this.security.adminEnabled = false
         this.security.adminSalt = ''
         this.security.adminHash = ''
-        this.adminUnlocked = true
-        sessionStorage.setItem('cms_admin_unlocked', '1')
         this.persist()
         alert('管理者パスコードを無効化しました')
       }
@@ -1272,7 +1152,6 @@ export default {
           const obj = JSON.parse(reader.result)
           if (confirm('現在のデータを上書きしますか？')) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(obj))
-            sessionStorage.removeItem('cms_admin_unlocked')
             location.reload()
           }
         } catch { alert('JSONの読み込みに失敗しました') }
