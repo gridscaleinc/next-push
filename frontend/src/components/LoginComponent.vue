@@ -3,7 +3,7 @@
     <div class="login-modal">
       <div class="login-header">
         <h3 class="font-semibold text-lg">ログイン</h3>
-        <button @click="closeLogin" class="close-button">×</button>
+        <button v-if="!forceLogin" @click="closeLogin" class="close-button">×</button>
       </div>
 
       <form @submit.prevent="handleLogin" class="login-form">
@@ -39,6 +39,7 @@
 
         <div class="login-actions">
           <button
+            v-if="!forceLogin"
             type="button"
             @click="closeLogin"
             class="btn-secondary"
@@ -50,6 +51,7 @@
             type="submit"
             class="btn-primary"
             :disabled="isLoading || !loginForm.email || !loginForm.password"
+            :class="forceLogin ? 'w-full' : ''"
           >
             <span v-if="isLoading">ログイン中...</span>
             <span v-else>ログイン</span>
@@ -69,6 +71,10 @@ export default {
     showLogin: {
       type: Boolean,
       default: false
+    },
+    forceLogin: {
+      type: Boolean,
+      default: false
     }
   },
   emits: ['close', 'login-success'],
@@ -84,6 +90,10 @@ export default {
   },
   methods: {
     closeLogin () {
+      // Prevent closing when login is forced
+      if (this.forceLogin) {
+        return
+      }
       this.resetForm()
       this.$emit('close')
     },

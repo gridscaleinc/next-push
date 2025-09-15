@@ -3,6 +3,7 @@
 
     <!-- Sidebar -->
     <aside
+        v-if="isAuthenticated"
         class="hidden md:flex md:flex-col transition-all duration-200 ease-in-out overflow-hidden"
         :class="ui.sidebarCollapsed ? 'w-0 px-0 py-0' : 'w-72 p-4'">
 
@@ -89,7 +90,7 @@
     </aside>
 
     <!-- Main -->
-    <section class="flex-1 flex flex-col">
+    <section v-if="isAuthenticated" class="flex-1 flex flex-col">
       <!-- Topbar -->
       <header class="px-4 pt-4 md:px-6">
         <div class="card px-3 py-2 md:px-4 md:py-3 flex items-center gap-3">
@@ -114,8 +115,6 @@
           </h1>
 
           <div class="ml-auto flex items-center gap-3 text-xs md:text-sm text-gray-600">
-            <span>下書き {{ stats.drafts }} / 公開 {{ stats.published }}</span>
-
             <!-- Authentication Section -->
             <div v-if="isAuthenticated" class="flex items-center gap-2">
               <span class="text-brand-700">{{ currentUser?.userName || currentUser?.email }}</span>
@@ -276,7 +275,6 @@
                   <th class="text-left p-2">氏名</th>
                   <th class="text-left p-2">件名</th>
                   <th class="text-left p-2">内容</th>
-                  <th class="text-left p-2">状態</th>
                   <th class="text-right p-2">操作</th>
                 </tr>
                 </thead>
@@ -288,12 +286,6 @@
                   <td class="p-2 max-w-[420px]">
                     <div class="text-gray-700 whitespace-pre-wrap line-clamp-3">{{ i.message }}</div>
                   </td>
-                  <td class="p-2">
-                    <span class="text-xs px-2 py-0.5 rounded-full"
-                          :class="i.status==='replied'?'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800'">
-                      {{ i.status==='replied'?'返信済み':'未対応' }}
-                    </span>
-                  </td>
                   <td class="p-2 text-right space-x-2 whitespace-nowrap">
                     <button @click="openContact(i)" class="px-2 py-1 rounded border hover:bg-gray-50">
                       <i class="fa-solid fa-eye"></i>
@@ -304,7 +296,7 @@
                   </td>
                 </tr>
                 <tr v-if="filteredContacts.length===0">
-                  <td colspan="6" class="p-6 text-center text-gray-500">該当なし</td>
+                  <td colspan="5" class="p-6 text-center text-gray-500">該当なし</td>
                 </tr>
                 </tbody>
               </table>
@@ -330,13 +322,11 @@
                   </div>
                 </div>
                 <div class="w-full max-w-md">
-                  <label class="block text-sm font-medium">返信内容</label>
-                  <textarea v-model="replyBody" rows="8" class="mt-1 w-full input"></textarea>
                   <div class="mt-3 flex items-center justify-end gap-2">
                     <button @click="modals.contact=false" class="px-3 py-2 rounded border">閉じる</button>
-                    <button :disabled="!replyBody.trim()" @click="sendReply"
-                            class="px-3 py-2 rounded-lg btn-primary disabled:opacity-50">
-                      <i class="fa-solid fa-paper-plane mr-1"></i> 返信を記録
+                    <button @click="replyEmail"
+                            class="px-3 py-2 rounded-lg btn-primary">
+                      <i class="fa-solid fa-envelope mr-1"></i> メールを返信
                     </button>
                   </div>
                 </div>
@@ -351,18 +341,13 @@
             <div class="flex items-center justify-between">
               <h2 class="font-semibold">採用エントリー</h2>
               <div class="flex items-center gap-2">
-                <select v-model="filters.rec.status" class="input">
-                  <option value="">すべて</option>
-                  <option value="new">新規</option>
-                  <option value="screening">書類審査</option>
-                  <option value="interview">面談</option>
-                  <option value="offer">内定</option>
-                  <option value="rejected">不合格</option>
+                <select v-model="filters.rec.gender" class="input">
+                  <option value="">全て</option>
+                  <option value="male">男性</option>
+                  <option value="female">女性</option>
+                  <option value="other">その他</option>
                 </select>
-                <input v-model="filters.rec.q" placeholder="検索：名前/スキル/メモ" class="input w-56">
-                <button @click="openRecForm()" class="px-3 py-2 rounded-lg btn-primary">
-                  <i class="fa-solid fa-user-plus mr-1"></i> 手動登録
-                </button>
+                <input v-model="filters.rec.q" placeholder="検索：氏名/フリガナ/メール" class="input w-56">
               </div>
             </div>
 
@@ -372,73 +357,86 @@
                 <tr>
                   <th class="text-left p-2">応募日</th>
                   <th class="text-left p-2">氏名</th>
+                  <th class="text-left p-2">フリガナ</th>
+                  <th class="text-left p-2">生年月日</th>
+                  <th class="text-left p-2">性別</th>
                   <th class="text-left p-2">連絡先</th>
-                  <th class="text-left p-2">スキル</th>
-                  <th class="text-left p-2">状態</th>
+                  <th class="text-left p-2">卒業予定</th>
                   <th class="text-right p-2">操作</th>
                 </tr>
                 </thead>
                 <tbody>
-                <tr v-for="c in filteredRec" :key="c.id" class="border-b">
-                  <td class="p-2 whitespace-nowrap">{{ c.appliedAt }}</td>
-                  <td class="p-2 font-medium">{{ c.name }}</td>
+                <tr v-for="e in filteredRec" :key="e.id" class="border-b">
+                  <td class="p-2 whitespace-nowrap">{{ formatDate(e.createdAt) }}</td>
+                  <td class="p-2 font-medium">{{ e.name }}</td>
+                  <td class="p-2 text-gray-600">{{ e.nameKana }}</td>
+                  <td class="p-2 whitespace-nowrap">{{ formatBirthDate(e) }}</td>
+                  <td class="p-2">{{ formatGender(e.gender) }}</td>
                   <td class="p-2">
-                    <div class="text-xs text-gray-500">{{ c.email }}</div>
-                    <div class="text-xs text-gray-500">{{ c.tel || '-' }}</div>
+                    <div class="text-xs text-gray-500">{{ e.email }}</div>
+                    <div class="text-xs text-gray-500">{{ e.tel || '-' }}</div>
                   </td>
-                  <td class="p-2 text-gray-700">{{ c.skills || '-' }}</td>
-                  <td class="p-2">
-                    <select v-model="c.stage" @change="persist()" class="px-2 py-1 rounded border bg-white">
-                      <option value="new">新規</option>
-                      <option value="screening">書類審査</option>
-                      <option value="interview">面談</option>
-                      <option value="offer">内定</option>
-                      <option value="rejected">不合格</option>
-                    </select>
-                  </td>
+                  <td class="p-2 whitespace-nowrap">{{ formatGraduation(e) }}</td>
                   <td class="p-2 text-right space-x-2 whitespace-nowrap">
-                    <button @click="openRecForm(c)" class="px-2 py-1 rounded border hover:bg-gray-50">
-                      <i class="fa-solid fa-pen"></i>
+                    <button @click="openRecForm(e)" class="px-2 py-1 rounded border hover:bg-gray-50">
+                      <i class="fa-solid fa-eye"></i>
                     </button>
-                    <button @click="delRec(c.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
+                    <button @click="delRec(e.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
                       <i class="fa-solid fa-trash"></i>
                     </button>
                   </td>
                 </tr>
                 <tr v-if="filteredRec.length===0">
-                  <td colspan="6" class="p-6 text-center text-gray-500">該当なし</td>
+                  <td colspan="8" class="p-6 text-center text-gray-500">該当なし</td>
                 </tr>
                 </tbody>
               </table>
             </div>
           </div>
 
-          <!-- Editor -->
+          <!-- Detail View -->
           <transition name="fade">
             <div v-if="modals.rec" class="card p-4">
-              <h3 class="font-semibold mb-3">{{ recForm.id ? '応募者を編集' : '応募者を登録' }}</h3>
+              <h3 class="font-semibold mb-3">応募者詳細</h3>
               <div class="grid md:grid-cols-2 gap-4">
                 <label class="block">氏名
-                  <input v-model="recForm.name" class="mt-1 w-full input"/>
+                  <input v-model="recForm.name" class="mt-1 w-full input" readonly/>
                 </label>
-                <label class="block">応募日
-                  <input v-model="recForm.appliedAt" type="date" class="mt-1 w-full input"/>
+                <label class="block">フリガナ
+                  <input v-model="recForm.nameKana" class="mt-1 w-full input" readonly/>
                 </label>
-                <label class="block">メール
-                  <input v-model="recForm.email" type="email" class="mt-1 w-full input"/>
+                <label class="block">生年月日
+                  <input :value="formatBirthDateFull(recForm)" class="mt-1 w-full input" readonly/>
                 </label>
-                <label class="block">電話
-                  <input v-model="recForm.tel" class="mt-1 w-full input"/>
+                <label class="block">性別
+                  <input :value="formatGender(recForm.gender)" class="mt-1 w-full input" readonly/>
                 </label>
-                <label class="block md:col-span-2">スキル
-                  <input v-model="recForm.skills" placeholder="Java / Vue / AWS 等" class="mt-1 w-full input"/>
+                <label class="block">メールアドレス
+                  <input v-model="recForm.email" type="email" class="mt-1 w-full input" readonly/>
                 </label>
-                <label class="block md:col-span-2">メモ
-                  <textarea v-model="recForm.note" rows="4" class="mt-1 w-full input"></textarea>
+                <label class="block">電話番号
+                  <input v-model="recForm.tel" class="mt-1 w-full input" readonly/>
+                </label>
+                <label class="block">郵便番号
+                  <input v-model="recForm.postcode" class="mt-1 w-full input" readonly/>
+                </label>
+                <label class="block">住所
+                  <input v-model="recForm.address" class="mt-1 w-full input" readonly/>
+                </label>
+                <label class="block">卒業予定
+                  <input :value="formatGraduation(recForm)" class="mt-1 w-full input" readonly/>
+                </label>
+                <label class="block">履歴書ファイル
+                  <input :value="recForm.resumeFilename || '-'" class="mt-1 w-full input" readonly/>
+                </label>
+                <label class="block">応募日時
+                  <input :value="formatDate(recForm.createdAt)" class="mt-1 w-full input" readonly/>
+                </label>
+                <label class="block">IPアドレス
+                  <input v-model="recForm.ipAddress" class="mt-1 w-full input" readonly/>
                 </label>
                 <div class="md:col-span-2 flex items-center justify-end gap-2">
-                  <button @click="modals.rec=false" class="px-3 py-2 rounded border">キャンセル</button>
-                  <button @click="saveRec" class="px-3 py-2 rounded-lg btn-primary">保存</button>
+                  <button @click="modals.rec=false" class="px-3 py-2 rounded border">閉じる</button>
                 </div>
               </div>
             </div>
@@ -624,6 +622,7 @@
     <!-- Login Modal -->
     <LoginComponent
       :show-login="showLoginModal"
+      :force-login="!isAuthenticated"
       @close="showLoginModal = false"
       @login-success="handleLoginSuccess"
     />
@@ -653,11 +652,11 @@ export default {
       ui: { sidebarCollapsed: false },
 
       modals: { news: false, wp: false, contact: false, rec: false, user: false },
-      filters: { news: { q: '' }, wp: { q: '' }, contact: { q: '', status: '' }, rec: { q: '', status: '' }, users: { q: '', role: '', status: '' } },
+      filters: { news: { q: '' }, wp: { q: '' }, contact: { q: '', status: '' }, rec: { q: '', gender: '' }, users: { q: '', role: '', status: '' } },
       news: [],
       whitepapers: [],
       contacts: [],
-      recruits: [],
+      entries: [],
       users: [],
       newsForm: { id: null, title: '', date: '', body: '', published: true },
       wpForm: { id: null, title: '', date: '', desc: '', url: '', tags: [], published: false },
@@ -683,7 +682,7 @@ export default {
         { key: 'news', label: 'News', icon: 'fa-solid fa-bullhorn', badge: () => this.news.filter(n => n.published).length },
         { key: 'whitepapers', label: 'WhitePaper', icon: 'fa-solid fa-file-lines', badge: () => this.whitepapers.filter(w => w.published).length },
         { key: 'contact', label: 'お問い合わせ', icon: 'fa-solid fa-inbox', badge: () => this.contacts.filter(c => c.status === 'open').length },
-        { key: 'recruit', label: '採用', icon: 'fa-solid fa-users', badge: () => this.recruits.length }
+        { key: 'recruit', label: '採用', icon: 'fa-solid fa-users', badge: () => this.entries.length }
       ]
 
       // Add Users menu only for admin users
@@ -722,11 +721,13 @@ export default {
       }).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).reverse()
     },
     filteredRec () {
-      const q = this.filters.rec.q.trim().toLowerCase(); const st = this.filters.rec.status
-      return this.recruits.filter(r => {
-        const hit = !q || (r.name + ' ' + (r.skills || '') + ' ' + (r.note || '')).toLowerCase().includes(q)
-        const ok = !st || r.stage === st; return hit && ok
-      }).sort((a, b) => (b.appliedAt || '').localeCompare(a.appliedAt || ''))
+      const q = this.filters.rec.q.trim().toLowerCase()
+      const gender = this.filters.rec.gender
+      return this.entries.filter(e => {
+        const hit = !q || (e.name + ' ' + (e.nameKana || '') + ' ' + (e.email || '')).toLowerCase().includes(q)
+        const genderMatch = !gender || e.gender === gender
+        return hit && genderMatch
+      }).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
     },
     recentUsers () {
       return [...this.users].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 5)
@@ -768,17 +769,7 @@ export default {
         { id: crypto.randomUUID(), title: 'DX推進ガイド（製造業編）', date: '2025-07-15', desc: '現場起点のカイゼンから始めるDXの実践手順。', url: '', tags: ['DX', '製造'], published: false }
       ]
     }
-    if (!saved.contacts) {
-      this.contacts = [
-        { id: crypto.randomUUID(), name: '山田 太郎', email: 'taro@example.com', subject: 'SESのご相談', message: '9月から参画可能なJavaエンジニアのご紹介をお願いしたいです。', createdAt: '2025-09-10 10:24', status: 'open', replies: [] },
-        { id: crypto.randomUUID(), name: 'Suzuki', email: 'suzuki@corp.jp', subject: 'Webサイトの制作', message: 'LP制作の概算見積をご相談できますか？', createdAt: '2025-09-09 16:02', status: 'replied', replies: [{ at: '2025-09-09 17:10', body: 'お問い合わせありがとうございます。詳細要件をお伺いできますか？' }] }
-      ]
-    }
-    if (!saved.recruits) {
-      this.recruits = [
-        { id: crypto.randomUUID(), name: '佐藤 花子', email: 'hanako@example.jp', tel: '', skills: 'Java / Spring / Vue', appliedAt: '2025-09-12', note: 'バックエンド強め', stage: 'screening' }
-      ]
-    }
+    // Entries will be loaded from backend instead of localStorage
     if (!saved.users) {
       this.users = [
         { id: crypto.randomUUID(), name: 'Admin', email: 'admin@example.com', role: 'admin', active: true, note: 'デモ管理者', createdAt: new Date().toISOString(), auth: { salt: '', hash: '' } }
@@ -807,7 +798,6 @@ export default {
         ui: this.ui,
         news: this.news,
         whitepapers: this.whitepapers,
-        contacts: this.contacts,
         recruits: this.recruits,
         users: this.users,
         settings: this.settings,
@@ -872,15 +862,24 @@ export default {
 
             // Set authorization header for all requests
             axios.defaults.headers.common.Authorization = `Bearer ${parsedAuth.token}`
+
+            // Load contacts and entries after authentication is set up
+            this.loadContacts()
+            this.loadEntries()
           } else {
             // Token expired, clear stored data
             localStorage.removeItem('auth')
             this.handleLogout()
           }
+        } else {
+          // No authentication data found, force login
+          this.showLoginModal = true
         }
       } catch (error) {
         console.error('Failed to initialize auth:', error)
         localStorage.removeItem('auth')
+        // Force login on authentication error
+        this.showLoginModal = true
       }
     },
 
@@ -893,6 +892,13 @@ export default {
       axios.defaults.headers.common.Authorization = `Bearer ${authData.token}`
 
       console.log('User logged in:', authData)
+
+      // Load contacts and entries after successful login
+      this.loadContacts()
+      this.loadEntries()
+
+      // Refresh the page after login to reflect authentication state changes
+      window.location.reload()
     },
 
     handleLogout () {
@@ -907,6 +913,9 @@ export default {
       delete axios.defaults.headers.common.Authorization
 
       console.log('User logged out')
+
+      // Refresh the page after logout to reflect authentication state changes
+      window.location.reload()
     },
 
     // === User Registration Event Handlers ===
@@ -1023,20 +1032,91 @@ export default {
       }
     },
 
+    async loadContacts () {
+      try {
+        const response = await axios.get('/api/contacts?size=100')
+        // Transform backend data to frontend format
+        this.contacts = response.data.content.map(contact => ({
+          id: contact.id,
+          name: contact.name,
+          email: contact.email,
+          subject: contact.subject || '',
+          message: contact.message,
+          createdAt: new Date(contact.createdAt).toLocaleString('sv-SE').replace('T', ' ').slice(0, 16),
+          status: 'open',
+          replies: []
+        }))
+      } catch (error) {
+        console.error('Failed to load contacts:', error)
+        // Fallback to empty array if API fails
+        this.contacts = []
+      }
+    },
+
+    async loadEntries () {
+      try {
+        const response = await axios.get('/api/entries?size=100')
+        this.entries = response.data.content.map(entry => ({
+          id: entry.id,
+          name: entry.name,
+          nameKana: entry.nameKana,
+          email: entry.email,
+          tel: entry.tel,
+          birthYear: entry.birthYear,
+          birthMonth: entry.birthMonth,
+          birthDay: entry.birthDay,
+          gender: entry.gender,
+          graduationYear: entry.graduationYear,
+          graduationMonth: entry.graduationMonth,
+          address: entry.address,
+          postcode: entry.postcode,
+          resumeFilename: entry.resumeFilename,
+          ipAddress: entry.ipAddress,
+          createdAt: entry.createdAt
+        }))
+      } catch (error) {
+        console.error('Failed to load entries:', error)
+        this.entries = []
+      }
+    },
+
+    formatDate (dateString) {
+      if (!dateString) return '-'
+      return new Date(dateString).toLocaleString('sv-SE').replace('T', ' ').slice(0, 16)
+    },
+
+    formatBirthDate (entry) {
+      if (!entry.birthYear || !entry.birthMonth || !entry.birthDay) return '-'
+      return `${entry.birthYear}/${entry.birthMonth.padStart(2, '0')}/${entry.birthDay.padStart(2, '0')}`
+    },
+
+    formatBirthDateFull (entry) {
+      if (!entry.birthYear || !entry.birthMonth || !entry.birthDay) return '-'
+      return `${entry.birthYear}年${entry.birthMonth}月${entry.birthDay}日`
+    },
+
+    formatGraduation (entry) {
+      if (!entry.graduationYear || !entry.graduationMonth) return '-'
+      return `${entry.graduationYear}/${entry.graduationMonth.padStart(2, '0')}`
+    },
+
+    formatGender (gender) {
+      switch (gender) {
+        case 'male': return '男性'
+        case 'female': return '女性'
+        case 'other': return 'その他'
+        default: return '-'
+      }
+    },
     openContact (i) {
       this.contactForm = JSON.parse(JSON.stringify(i))
-      this.replyBody = ''; this.modals.contact = true
+      this.modals.contact = true
     },
-    sendReply () {
-      const body = this.replyBody.trim(); if (!body) return
-      const idx = this.contacts.findIndex(x => x.id === this.contactForm.id)
-      if (idx > -1) {
-        this.contacts[idx].replies = this.contacts[idx].replies || []
-        this.contacts[idx].replies.push({ at: new Date().toISOString().slice(0, 16).replace('T', ' '), body })
-        this.contacts[idx].status = 'replied'
-        this.persist(); this.openContact(this.contacts[idx]); this.replyBody = ''
-        alert('返信を記録しました（送信はダミー）')
-      }
+    replyEmail () {
+      const email = this.contactForm.email
+      const subject = `Re: ${this.contactForm.subject || 'お問い合わせ'}`
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}`
+      window.open(gmailUrl, '_blank')
     },
     delContact (id) {
       if (confirm('削除しますか？')) {
@@ -1044,27 +1124,19 @@ export default {
       }
     },
 
-    openRecForm (c = null) {
-      this.recForm = c
-        ? JSON.parse(JSON.stringify(c))
-        : { id: null, name: '', appliedAt: new Date().toISOString().slice(0, 10), email: '', tel: '', skills: '', note: '', stage: 'new' }
+    openRecForm (entry = null) {
+      this.recForm = entry ? JSON.parse(JSON.stringify(entry)) : {}
       this.modals.rec = true
     },
     saveRec () {
-      const f = this.recForm
-      if (!f.name?.trim()) return alert('氏名は必須です')
-      if (!f.appliedAt) return alert('応募日は必須です')
-      if (f.id) {
-        const idx = this.recruits.findIndex(x => x.id === f.id)
-        if (idx > -1) this.recruits[idx] = JSON.parse(JSON.stringify(f))
-      } else {
-        f.id = crypto.randomUUID(); this.recruits.push(JSON.parse(JSON.stringify(f)))
-      }
-      this.modals.rec = false; this.persist()
+      // Entry details are read-only, no save functionality needed
+      this.modals.rec = false
     },
     delRec (id) {
       if (confirm('削除しますか？')) {
-        this.recruits = this.recruits.filter(n => n.id !== id); this.persist()
+        this.entries = this.entries.filter(e => e.id !== id)
+        // Note: In a real application, you would also delete from backend
+        console.log('Entry deleted:', id)
       }
     },
 

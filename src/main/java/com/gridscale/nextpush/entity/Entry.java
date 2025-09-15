@@ -57,6 +57,7 @@ public class Entry {
     @Column(name = "tel")
     private String tel;
 
+    // Getters and Setters
     public Long getId() {
         return id;
     }
@@ -184,5 +185,4 @@ public class Entry {
     public void setTel(String tel) {
         this.tel = tel;
     }
-
 }
