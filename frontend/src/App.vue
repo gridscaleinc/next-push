@@ -132,8 +132,8 @@
             ref="newsListComponent"
             :canEdit="canEditNews()"
             @create-news="canEditNews() ? openNewsForm() : showPermissionError()"
-            @edit-news="canEditNews() ? openNewsForm : showPermissionError"
-            @delete-news="canEditNews() ? delNews : showPermissionError"
+            @edit-news="canEditNews() ? openNewsForm($event) : showPermissionError()"
+            @delete-news="canEditNews() ? delNews($event) : showPermissionError()"
             @view-news="viewNewsDetail"
           />
 
