@@ -4,7 +4,7 @@
       <h2 class="font-semibold">ニュース一覧</h2>
       <div class="flex items-center gap-2">
         <input v-model="searchQuery" placeholder="検索：タイトル/本文" class="input w-56">
-        <button @click="$emit('create-news')" class="px-3 py-2 rounded-lg btn-primary">
+        <button v-if="canEdit" @click="$emit('create-news')" class="px-3 py-2 rounded-lg btn-primary">
           <i class="fa-solid fa-plus mr-1"></i> 新規作成
         </button>
       </div>
@@ -26,10 +26,13 @@
           <td class="p-2 font-medium">{{ n.title }}</td>
           <td class="p-2 text-gray-600 truncate max-w-[420px]">{{ n.content }}</td>
           <td class="p-2 text-right space-x-2 whitespace-nowrap">
-            <button @click="$emit('edit-news', n)" class="px-2 py-1 rounded border hover:bg-gray-50">
+            <button @click="$emit('view-news', n)" class="px-2 py-1 rounded border hover:bg-gray-50">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+            <button v-if="canEdit" @click="$emit('edit-news', n)" class="px-2 py-1 rounded border hover:bg-gray-50">
               <i class="fa-solid fa-pen"></i>
             </button>
-            <button @click="$emit('delete-news', n.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
+            <button v-if="canEdit" @click="$emit('delete-news', n.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
               <i class="fa-solid fa-trash"></i>
             </button>
           </td>
@@ -68,7 +71,13 @@ import axios from 'axios'
 
 export default {
   name: 'NewsListComponent',
-  emits: ['create-news', 'edit-news', 'delete-news'],
+  props: {
+    canEdit: {
+      type: Boolean,
+      default: false
+    }
+  },
+  emits: ['create-news', 'edit-news', 'delete-news', 'view-news'],
   data () {
     return {
       searchQuery: '',

@@ -1,14 +1,19 @@
 package com.gridscale.nextpush.controller;
 
 import com.gridscale.nextpush.entity.News;
+import com.gridscale.nextpush.entity.User;
 import com.gridscale.nextpush.repository.NewsRepository;
+import com.gridscale.nextpush.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/news")
@@ -17,6 +22,25 @@ public class NewsController {
 
     @Autowired
     private NewsRepository newsRepository;
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    private boolean canEditNews(Authentication authentication) {
+        if (authentication == null) {
+            return false;
+        }
+        
+        String currentUserEmail = authentication.getName();
+        Optional<User> currentUserOpt = userRepository.findByEmail(currentUserEmail);
+        
+        if (currentUserOpt.isEmpty()) {
+            return false;
+        }
+        
+        User currentUser = currentUserOpt.get();
+        return "admin".equals(currentUser.getUserType()) || "editor".equals(currentUser.getUserType());
+    }
 
     @GetMapping
     public ResponseEntity<Page<News>> getAllNews(
@@ -37,7 +61,10 @@ public class NewsController {
     }
 
     @PostMapping
-    public ResponseEntity<News> createNews(@RequestBody News news) {
+    public ResponseEntity<News> createNews(@RequestBody News news, Authentication authentication) {
+        if (!canEditNews(authentication)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         // Validate required fields
         if (news.getTitle() == null || news.getTitle().trim().isEmpty()) {
             return ResponseEntity.badRequest().build();
@@ -51,7 +78,10 @@ public class NewsController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<News> updateNews(@PathVariable Long id, @RequestBody News news) {
+    public ResponseEntity<News> updateNews(@PathVariable Long id, @RequestBody News news, Authentication authentication) {
+        if (!canEditNews(authentication)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         return newsRepository.findById(id)
                 .map(existingNews -> {
                     // Validate required fields
@@ -74,7 +104,10 @@ public class NewsController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteNews(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteNews(@PathVariable Long id, Authentication authentication) {
+        if (!canEditNews(authentication)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         return newsRepository.findById(id)
                 .map(news -> {
                     newsRepository.delete(news);

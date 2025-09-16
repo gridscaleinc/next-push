@@ -130,9 +130,11 @@
         <section v-if="route==='news'" class="space-y-6">
           <NewsListComponent
             ref="newsListComponent"
-            @create-news="openNewsForm()"
-            @edit-news="openNewsForm"
-            @delete-news="delNews"
+            :canEdit="canEditNews()"
+            @create-news="canEditNews() ? openNewsForm() : showPermissionError()"
+            @edit-news="canEditNews() ? openNewsForm : showPermissionError"
+            @delete-news="canEditNews() ? delNews : showPermissionError"
+            @view-news="viewNewsDetail"
           />
 
           <!-- Editor -->
@@ -152,6 +154,27 @@
                 <div class="md:col-span-2 flex items-center justify-end gap-2">
                   <button @click="modals.news=false" class="px-3 py-2 rounded border">キャンセル</button>
                   <button @click="saveNews" class="px-3 py-2 rounded-lg btn-primary">保存</button>
+                </div>
+              </div>
+            </div>
+          </transition>
+
+          <!-- Read-only News Detail -->
+          <transition name="fade">
+            <div v-if="modals.newsDetail" class="card p-4">
+              <h3 class="font-semibold mb-3">ニュース詳細</h3>
+              <div class="grid md:grid-cols-2 gap-4">
+                <label class="block">タイトル
+                  <input v-model="newsDetailForm.title" class="mt-1 w-full input" readonly/>
+                </label>
+                <label class="block">日付
+                  <input v-model="newsDetailForm.date" type="date" class="mt-1 w-full input" readonly/>
+                </label>
+                <label class="block md:col-span-2">本文
+                  <textarea v-model="newsDetailForm.body" rows="6" class="mt-1 w-full input" readonly></textarea>
+                </label>
+                <div class="md:col-span-2 flex items-center justify-end gap-2">
+                  <button @click="modals.newsDetail=false" class="px-3 py-2 rounded border">閉じる</button>
                 </div>
               </div>
             </div>
@@ -191,10 +214,10 @@
                   <span class="text-gray-500 ml-auto">{{ w.date }}</span>
                 </div>
                 <div class="mt-3 flex gap-2">
-                  <button @click="openWPForm(w)" class="px-2 py-1 rounded border hover:bg-gray-50">
+                  <button v-if="canEditNews()" @click="openWPForm(w)" class="px-2 py-1 rounded border hover:bg-gray-50">
                     <i class="fa-solid fa-pen"></i>
                   </button>
-                  <button @click="delWP(w.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
+                  <button v-if="canEditNews()" @click="delWP(w.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
                     <i class="fa-solid fa-trash"></i>
                   </button>
                 </div>
@@ -273,7 +296,7 @@
                     <button @click="openContact(i)" class="px-2 py-1 rounded border hover:bg-gray-50">
                       <i class="fa-solid fa-eye"></i>
                     </button>
-                    <button @click="delContact(i.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
+                    <button v-if="canEditNews()" @click="delContact(i.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
                       <i class="fa-solid fa-trash"></i>
                     </button>
                   </td>
@@ -364,7 +387,7 @@
                     <button @click="openRecForm(e)" class="px-2 py-1 rounded border hover:bg-gray-50">
                       <i class="fa-solid fa-eye"></i>
                     </button>
-                    <button @click="delRec(e.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
+                    <button v-if="canEditNews()" @click="delRec(e.id)" class="px-2 py-1 rounded border text-red-600 hover:bg-red-50">
                       <i class="fa-solid fa-trash"></i>
                     </button>
                   </td>
@@ -561,7 +584,7 @@ export default {
       // UI状態（サイドバー折りたたみ）
       ui: { sidebarCollapsed: false },
 
-      modals: { news: false, wp: false, contact: false, rec: false, user: false },
+      modals: { news: false, newsDetail: false, wp: false, contact: false, rec: false, user: false },
       filters: { news: { q: '' }, wp: { q: '' }, contact: { q: '', status: '' }, rec: { q: '', gender: '' }, users: { q: '', role: '', status: '' } },
       news: [],
       whitepapers: [],
@@ -569,6 +592,7 @@ export default {
       entries: [],
       users: [],
       newsForm: { id: null, title: '', date: '', body: '', published: true },
+      newsDetailForm: { id: null, title: '', date: '', body: '', published: true },
       wpForm: { id: null, title: '', date: '', desc: '', url: '', tags: [], published: false },
       wpTags: '',
       contactForm: {},
@@ -815,6 +839,12 @@ export default {
     },
 
     // === News / WP / Contact / Recruit ===
+    canEditNews () {
+      return this.isAuthenticated && (this.currentUser?.userType === 'admin' || this.currentUser?.userType === 'editor')
+    },
+    showPermissionError () {
+      alert('この操作を行う権限がありません。管理者または編集者のみがニュースを編集できます。')
+    },
     openNewsForm (n = null) {
       if (n) {
         // When editing existing news, map content field to body field for the form
@@ -832,6 +862,11 @@ export default {
       this.modals.news = true
     },
     async saveNews () {
+      if (!this.canEditNews()) {
+        this.showPermissionError()
+        return
+      }
+
       const f = this.newsForm
       if (!f.title?.trim()) return alert('タイトルは必須です')
       if (!f.date) return alert('日付は必須です')
@@ -867,6 +902,11 @@ export default {
       }
     },
     async delNews (id) {
+      if (!this.canEditNews()) {
+        this.showPermissionError()
+        return
+      }
+
       if (confirm('削除しますか？')) {
         try {
           await axios.delete(`/api/news/${id}`)
@@ -887,6 +927,17 @@ export default {
           alert('ニュースの削除に失敗しました')
         }
       }
+    },
+    viewNewsDetail (n) {
+      // Populate the read-only news detail form
+      this.newsDetailForm = {
+        id: n.id,
+        title: n.title,
+        date: n.date,
+        body: n.content || '', // Map backend 'content' to frontend 'body'
+        published: n.published !== undefined ? n.published : true
+      }
+      this.modals.newsDetail = true
     },
 
     openWPForm (w = null) {
@@ -1000,9 +1051,17 @@ export default {
       const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}`
       window.open(gmailUrl, '_blank')
     },
-    delContact (id) {
+    async delContact (id) {
       if (confirm('削除しますか？')) {
-        this.contacts = this.contacts.filter(n => n.id !== id); this.persist()
+        try {
+          await axios.delete(`/api/contacts/${id}`)
+          this.contacts = this.contacts.filter(n => n.id !== id)
+          this.persist()
+          console.log('Contact deleted:', id)
+        } catch (error) {
+          console.error('Failed to delete contact:', error)
+          alert('問い合わせの削除に失敗しました')
+        }
       }
     },
 
@@ -1014,11 +1073,17 @@ export default {
       // Entry details are read-only, no save functionality needed
       this.modals.rec = false
     },
-    delRec (id) {
+    async delRec (id) {
       if (confirm('削除しますか？')) {
-        this.entries = this.entries.filter(e => e.id !== id)
-        // Note: In a real application, you would also delete from backend
-        console.log('Entry deleted:', id)
+        try {
+          await axios.delete(`/api/entries/${id}`)
+          this.entries = this.entries.filter(e => e.id !== id)
+          this.persist()
+          console.log('Entry deleted:', id)
+        } catch (error) {
+          console.error('Failed to delete entry:', error)
+          alert('採用エントリの削除に失敗しました')
+        }
       }
     },
 

@@ -1,0 +1,61 @@
+# Google App Engine Standard環境設定
+runtime: java17
+env: standard
+instance_class: F1
+entrypoint: java -Xmx128m -jar target/next-push-0.1.1.jar
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 1
+  target_cpu_utilization: 0.65
+  max_concurrent_requests: 50
+
+vpc_access_connector:
+  name: projects/next-push-gs/locations/asia-northeast1/connectors/nextpush-conn-gs
+  egress_setting: private-ranges-only
+
+# 環境変数設定（Secret Managerから取得）
+env_variables:
+  # Spring Boot標準のデータソース設定
+  SPRING_DATASOURCE_URL: "jdbc:postgresql:///gsdb01?cloudSqlInstance=homeapp-gs:asia-northeast1:gsdb001&socketFactory=com.google.cloud.sql.postgres.SocketFactory"
+  SPRING_DATASOURCE_USERNAME: "gdbuser01"
+  # ← パスワードに # があるので必ずクォート！
+  SPRING_DATASOURCE_PASSWORD: "GS##09-100w"
+  SPRING_DATASOURCE_DRIVER_CLASS_NAME: "org.postgresql.Driver"
+  SPRING_JPA_DATABASE_PLATFORM: "org.hibernate.dialect.PostgreSQLDialect"
+  SPRING_SQL_INIT_MODE: "never"
+  SPRING_FLYWAY_ENABLED: "false"
+  SPRING_JPA_PROPERTIES_JAKARTA_PERSISTENCE_JDBC_URL: "jdbc:postgresql:///gsdb01?cloudSqlInstance=homeapp-gs:asia-northeast1:gsdb001&socketFactory=com.google.cloud.sql.postgres.SocketFactory"
+  SPRING_JPA_PROPERTIES_JAKARTA_PERSISTENCE_JDBC_USER: "gdbuser01"
+  SPRING_JPA_PROPERTIES_JAKARTA_PERSISTENCE_JDBC_PASSWORD: "GS##09-100w"
+  SPRING_JPA_PROPERTIES_JAKARTA_PERSISTENCE_JDBC_DRIVER: "org.postgresql.Driver"
+  # メール設定（既存のまま維持）
+  SMTP_USERNAME: "Home-app@gridscale.com"
+  SMTP_APP_PASSWORD: "zdiq ouva rqud lymk"
+  # Cloud Storage設定（既存のまま維持）
+
+  # Spring Profile設定（本番環境用）
+  SPRING_PROFILES_ACTIVE: "prod"
+  
+  # ログレベル設定（本番環境用）
+  LOG_LEVEL: INFO
+  SPRING_LOG_LEVEL: INFO
+  HIBERNATE_LOG_LEVEL: WARN
+  SQL_LOG_LEVEL: WARN
+  POSTGRES_LOG_LEVEL: INFO
+  HIKARI_LOG_LEVEL: INFO
+  MAIL_LOG_LEVEL: INFO
+  APP_LOG_LEVEL: INFO
+
+handlers:
+  # Actuatorヘルスチェックエンドポイント（GAE環境でのログ監視用）
+  - url: /actuator/health
+    script: auto
+    secure: optional
+  # Actuatorメトリクスとログ管理エンドポイント
+  - url: /actuator/.*
+    script: auto
+    secure: optional
+  # メインアプリケーション
+  - url: /.*
+    script: auto
